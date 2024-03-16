@@ -7,5 +7,5 @@ dataset = load_partial_dataset(                                         ## loadi
     ["Motorcycle", "Taxi", "Bus"],
     _verbose=True)
 
-plotXY(dataset, "lat", "lon")
+plotXY(dataset, "lat", "lon", "Latitude", "Longitude")
 # azm_lst = measure_azimuth(dataset)

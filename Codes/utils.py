@@ -1,4 +1,5 @@
 import os
+import math
 from typing import Any, Union
 import matplotlib.pyplot as plt
 
@@ -46,7 +47,7 @@ def load_partial_dataset(           ## edit later so that instead of _filter_col
         _filter_column_name: str,
         _remove_list: list[str],
         _verbose: bool = False
-    ) -> list:
+    ) -> list[list[str]]:
 
     try:
         fd = open(_dataset, "r")
@@ -86,15 +87,21 @@ def _find_index_from_name(target: list[str], filter: str) -> int:
     
     return -1
 
-def plotXY(_dataset: list[str], x_coord: str, y_coord: str) -> None:
+def plotXY(_dataset: list[list[str]], x_coords: str, y_coords: str, x_label: str = None, y_label: str = None) -> None:
 
-    idx_x = _find_index_from_name(_dataset[0], x_coord)
+    if x_label == None:
+        x_label = x_coords
+    
+    if y_label == None:
+        y_label = y_coords
+
+    idx_x = _find_index_from_name(_dataset[0], x_coords)
     if idx_x == -1:
-        raise KeyError(f"Column Name {x_coord} not found in dataset: {_dataset}")
+        raise KeyError(f"Column Name {x_coords} not found in dataset: {_dataset}")
 
-    idx_y = _find_index_from_name(_dataset[0], y_coord)
+    idx_y = _find_index_from_name(_dataset[0], y_coords)
     if idx_y == -1:
-        raise KeyError(f"Column Name {y_coord} not found in dataset: {_dataset}")
+        raise KeyError(f"Column Name {y_coords} not found in dataset: {_dataset}")
     
     list_x = [float(data[idx_x]) for data in _dataset[1:]]
     list_y = [float(data[idx_y]) for data in _dataset[1:]]
@@ -102,8 +109,34 @@ def plotXY(_dataset: list[str], x_coord: str, y_coord: str) -> None:
     plt.plot(list_x, list_y, 'ro')
     print( min(list_x), max(list_x), min(list_y), max(list_y) )
     plt.axis(( min(list_x), max(list_x), min(list_y), max(list_y) ))
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
     plt.show()
 
-def measure_azimuth(_dataset: list[str]) -> list[int]:
+def measure_azimuth(_dataset: list[list[str]]) -> list[list[int]]:        ## [NOTE] code very specific to the dataset [!!!]
 
-    pass ## for now
+    returnList = []
+
+    for record in _dataset:
+        
+        recordList = []
+
+        lats = _extract_from(record, "lat")
+        lons = _extract_from(record, "lon")
+
+        for idx in range(len(lons) - 1):            ## [TODO] or lats, should not matter, verify later [!]
+
+            del_lons = lons[idx + 1] - lons[idx]
+
+            azx = math.atan2(
+                math.sin(del_lons) * math.cos(lats[idx + 1]),
+                ( math.cos(lats[idx]) * math.sin(lats[idx + 1]) ) - ( math.sin(lats[idx]) * math.cos(lats[idx + 1]) * math.cos(del_lons) )
+            )
+
+            recordList.append(azx)
+
+        returnList.append(recordList)
+
+def _extract_from(record: list[str], col: str, step: int = 6) -> list[int]:         ## default step value is six, because the values repeat at every sixth index in the dataset
+
+    raise NotImplementedError ## for now

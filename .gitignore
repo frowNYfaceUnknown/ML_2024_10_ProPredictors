@@ -1,2 +1,5 @@
 ## Ignore py-cache files
 *.pyc
+
+## Ignore the dataset csv's cause they're too large
+*.csv

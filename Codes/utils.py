@@ -1,5 +1,9 @@
 import os
 import math
+import numpy
+import numpy as np
+import matplotlib.cm as cm
+from statistics import fmean
 from typing import Any, Union
 import matplotlib.pyplot as plt
 
@@ -41,9 +45,9 @@ def change_delimiter(_dataset: str, _dir: str = None, _from: str = ";", _to: str
 
     return True
 
-def load_partial_dataset(           ## edit later so that instead of _filter_column_name and _remove_list, we simply pass a
-        _dataset: str,              ## _filter :dict: and that filters out the col name along with the list of values to be
-        _sep: str,                  ## filtered from that col. Essentially allowing to filter multiple cols while loading!!
+def load_partial_dataset(                       ## edit later so that instead of _filter_column_name and _remove_list, we simply pass a
+        _dataset: str,                          ## _filter :dict: and that filters out the col name along with the list of values to be
+        _sep: str,                              ## filtered from that col. Essentially allowing to filter multiple cols while loading!!
         _filter_column_name: str,
         _remove_list: list[str],
         _verbose: bool = False
@@ -87,7 +91,11 @@ def _find_index_from_name(target: list[str], filter: str) -> int:
     
     return -1
 
-def plotXY(_dataset: list[list[str]], x_coords: str, y_coords: str, x_label: str = None, y_label: str = None) -> None:
+def plotXY(
+        _dataset: list[list[str]], x_coords: str, y_coords: str,
+        x_label: str = None, y_label: str = None,
+        use_azm: bool = False, azm_dct = None
+    ) -> None:
 
     if x_label == None:
         x_label = x_coords
@@ -106,37 +114,136 @@ def plotXY(_dataset: list[list[str]], x_coords: str, y_coords: str, x_label: str
     list_x = [float(data[idx_x]) for data in _dataset[1:]]
     list_y = [float(data[idx_y]) for data in _dataset[1:]]
 
-    plt.plot(list_x, list_y, 'ro')
+    colors = iter(cm.rainbow(np.linspace(0, 1, len(list_x))))
+    for x, y in [(list_x[i], list_y[i]) for i in range(len(list_x))]:
+        plt.plot(x, y, 'o', color=next(colors))
+
     print( min(list_x), max(list_x), min(list_y), max(list_y) )
-    plt.axis(( min(list_x), max(list_x), min(list_y), max(list_y) ))
+    # plt.axis(( min(list_x), max(list_x), min(list_y), max(list_y) ))
     plt.xlabel(x_label)
     plt.ylabel(y_label)
+
+    if use_azm:
+        
+        if azm_dct == None:
+            azm_dct = measure_azimuth_vehicle_wise(_dataset)
+        
+        colors = iter(cm.rainbow(np.linspace(0, 1, len(list_x))))
+        for i in range(len(list_x)):
+            print(i, int(_dataset[1:][i][0]))
+            slope = 1/(math.tan(azm_dct[int(_dataset[1:][i][0])]))
+            offset = list_y[i] - (slope * list_x[i])
+            xrange = list(numpy.linspace(min(list_x), max(list_x), 10))
+            yrange = [(slope * xrange[j]) + offset for j in range(len(xrange))]
+            print(xrange, yrange)
+            plt.plot(xrange, yrange, color=next(colors))
+            plt.show()
+
     plt.show()
 
-def measure_azimuth(_dataset: list[list[str]]) -> list[list[int]]:        ## [NOTE] code very specific to the dataset [!!!]
+def measure_azimuth_record_wise(                ## [NOTE] code very specific to the dataset [!!!]
+        _record: list[str],
+        _dataset: list[list[str]]
+    ) -> list[int]:
+
+    lat_idx = _find_index_from_name(_dataset[0], "lat")
+    lon_idx = _find_index_from_name(_dataset[0], "lon")
+        
+    recordList = []
+
+    lats = _extract_from(_record, lat_idx)
+    lons = _extract_from(_record, lon_idx)
+
+    for idx in range(len(lons) - 1):            ## [TODO] or lats, should not matter, verify later [!] -- verified [√]
+
+        del_lons = lons[idx + 1] - lons[idx]
+
+        azx = math.atan2(
+            math.sin(del_lons) * math.cos(lats[idx + 1]),
+            ( math.cos(lats[idx]) * math.sin(lats[idx + 1]) ) - ( math.sin(lats[idx]) * math.cos(lats[idx + 1]) * math.cos(del_lons) )
+        )
+
+        recordList.append(azx)
+    
+    return recordList
+
+def _extract_from(record: list[str], idx: int, step: int = 6) -> list[float]:         ## default step value is six, because the values repeat at every sixth index in the dataset
 
     returnList = []
+    
+    while idx < len(record):
+        try:
+            returnList.append(float(record[idx]))
+        except ValueError as err:
+            continue
+        finally:
+            idx += step
+    
+    return returnList
 
-    for record in _dataset:
-        
-        recordList = []
+def measure_azimuth_vehicle_wise(               ## [NOTE] code very specific to the dataset [!!!]
+        _dataset: list[list[str]],
+        start: int = 0,                         ## multiplier to the step value of 6. Essentially means the time time stamp of the starting index
+        end: int = 1,                           ## multiplier to the step value of 6. Essentially means the time difference between the two records
+        use_avg: bool = False
+    ) -> dict[int, float]:
+    
+    lat_idx = _find_index_from_name(_dataset[0], "lat")
+    lon_idx = _find_index_from_name(_dataset[0], "lon")
 
-        lats = _extract_from(record, "lat")
-        lons = _extract_from(record, "lon")
+    recordDict = {}
 
-        for idx in range(len(lons) - 1):            ## [TODO] or lats, should not matter, verify later [!]
+    for data in _dataset[1:]:
 
-            del_lons = lons[idx + 1] - lons[idx]
+        if not use_avg:
+            del_lons = float(data[lon_idx + (6 * start) + (6 * end)]) - float(data[lon_idx + (6 * start)])
+            lats_end = float(data[lat_idx + (6 * start) + (6 * end)])
+            lats_start = float(data[lat_idx + (6 * start)])
 
             azx = math.atan2(
-                math.sin(del_lons) * math.cos(lats[idx + 1]),
-                ( math.cos(lats[idx]) * math.sin(lats[idx + 1]) ) - ( math.sin(lats[idx]) * math.cos(lats[idx + 1]) * math.cos(del_lons) )
+                math.sin(del_lons) * math.cos(lats_end),
+                ( math.cos(lats_start) * math.sin(lats_end) ) - ( math.sin(lats_start) * math.cos(lats_end) * math.cos(del_lons) )
             )
+        else:
+            azx = fmean(measure_azimuth_record_wise(data, _dataset))
 
-            recordList.append(azx)
+        recordDict[int(data[0])] = azx
+    
+    return recordDict
 
-        returnList.append(recordList)
+def plotSequentially(
+        _dataset: list[list[str]], x_coords: str, y_coords: str,
+        x_label: str = None, y_label: str = None
+    ) -> None:
 
-def _extract_from(record: list[str], col: str, step: int = 6) -> list[int]:         ## default step value is six, because the values repeat at every sixth index in the dataset
+    if x_label == None:
+        x_label = x_coords
+    
+    if y_label == None:
+        y_label = y_coords
 
-    raise NotImplementedError ## for now
+    idx_x = _find_index_from_name(_dataset[0], x_coords)
+    if idx_x == -1:
+        raise KeyError(f"Column Name {x_coords} not found in dataset: {_dataset}")
+
+    idx_y = _find_index_from_name(_dataset[0], y_coords)
+    if idx_y == -1:
+        raise KeyError(f"Column Name {y_coords} not found in dataset: {_dataset}")
+    
+    list_x = [float(data[idx_x]) for data in _dataset[1:]]
+    list_y = [float(data[idx_y]) for data in _dataset[1:]]
+
+    colors = iter(cm.rainbow(np.linspace(0, 1, len(list_x))))
+    for i, (x, y) in enumerate([(list_x[i], list_y[i]) for i in range(len(list_x))]):
+        
+        plt.plot(x, y, 'o', color=next(colors))
+
+        lat_idx = _find_index_from_name(_dataset[0], "lat")
+        lon_idx = _find_index_from_name(_dataset[0], "lon")
+        
+        latList = _extract_from(_dataset[1:][i], lat_idx)
+        lonList = _extract_from(_dataset[1:][i], lon_idx)
+
+        plt.plot(latList, lonList)
+    
+    plt.show()

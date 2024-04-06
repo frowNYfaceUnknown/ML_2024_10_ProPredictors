@@ -28,10 +28,10 @@ root/
 │
 ├── Weekly Reports/
 │   ├── ML_ProPredictors_Project_10_Mar-02_Report.docx
-│   └── ML_ProPredictors_Project_10_Mar-09_Report.docx
-│   └── ML_ProPredictors_Project_10_Mar-16_Report.docx
-│   └── ML_ProPredictors_Project_10_Mar-23_Report.docx
-│   └── ML_ProPredictors_Project_10_Mar-30_Report.docx
+│   ├── ML_ProPredictors_Project_10_Mar-09_Report.docx
+│   ├── ML_ProPredictors_Project_10_Mar-16_Report.docx
+│   ├── ML_ProPredictors_Project_10_Mar-23_Report.docx
+│   ├── ML_ProPredictors_Project_10_Mar-30_Report.docx
 │   └── ML_ProPredictors_Project_10_Apr-06_Report.docx
 │
 ├── Mid-Sem Report/

@@ -1,11 +1,24 @@
-import os
+from typing import Any, Union, Type
+
+from os import listdir
+from os.path import join, isfile
+
 import math
-import numpy
 import numpy as np
-import matplotlib.cm as cm
 from statistics import fmean
-from typing import Any, Union
+
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+from PIL import Image, ImageDraw
+
+LOC_WIN = 'E:\\ML_Project\\ML_2024_10_ProPredictors\\Dataset\\pNEUMA_V-Loc10-0900-0930'
+LOC_DRV = '/content/drive/MyDrive/ML Datasets/pNEUMA - Vision/pNEUMA_V-Loc10-0900-0930'
+
+FRAME_LOC_DRV = join(LOC_DRV, 'Frames')
+ANNOT_LOC_DRV = join(LOC_DRV, 'Annotations')
+
+FRAME_LOC_WIN = join(LOC_WIN, 'Frames')
+ANNOT_LOC_WIN = join(LOC_WIN, 'Annotations')
 
 def change_delimiter(_dataset: str, _dir: str = None, _from: str = ";", _to: str = ",", _out_name: str = "edited.csv") -> bool:
     """
@@ -14,8 +27,8 @@ def change_delimiter(_dataset: str, _dir: str = None, _from: str = ";", _to: str
         NOTE: If <_dir> is not provided, the func expects full path to the dataset in <_dataset> and the output <_out_name> will be saved in the same directory as utils.py
     """
     if _dir != None:
-        READ_FILE_PATH = os.path.join(_dir, _dataset)
-        WRITE_FILE_PATH = os.path.join(_dir, _out_name)
+        READ_FILE_PATH = join(_dir, _dataset)
+        WRITE_FILE_PATH = join(_dir, _out_name)
     else:
         READ_FILE_PATH = _dataset
         WRITE_FILE_PATH = _out_name
@@ -48,8 +61,8 @@ def change_delimiter(_dataset: str, _dir: str = None, _from: str = ";", _to: str
 def load_partial_dataset(                       ## edit later so that instead of _filter_column_name and _remove_list, we simply pass a
         _dataset: str,                          ## _filter :dict: and that filters out the col name along with the list of values to be
         _sep: str,                              ## filtered from that col. Essentially allowing to filter multiple cols while loading!!
-        _filter_column_name: str,
-        _remove_list: list[str],
+        _filter_column_name: str = None,
+        _remove_list: list[str] = [],
         _verbose: bool = False
     ) -> list[list[str]]:
 
@@ -58,27 +71,28 @@ def load_partial_dataset(                       ## edit later so that instead of
         lines = fd.readlines()
         return_list = []
 
-        i = _find_index_from_name([ele.strip() for ele in lines[0].split(_sep)], _filter_column_name)
-        if i == -1:
-            raise KeyError(f"Column Name {_filter_column_name} not found in dataset: {_dataset}")
+        if _filter_column_name != None:
+            i = _find_index_from_name([ele.strip() for ele in lines[0].split(_sep)], _filter_column_name)
+            if i == -1:
+                raise KeyError(f"Column Name {_filter_column_name} not found in dataset: {_dataset}")
 
         if _verbose:
             print("Length before removing:", len(lines))
 
         _remove_list = [ele.casefold() for ele in _remove_list]
         for line in lines:
-            
+
             lst = line.split(_sep)
             lst = [ele.strip().casefold() for ele in lst]
 
-            if lst[i] not in _remove_list:
+            if (_filter_column_name == None) or (lst[i] not in _remove_list):
                 return_list.append(lst)
 
         if _verbose:
             print("Length after removing:", len(return_list))
-        
+
         return return_list
-    
+
     except Exception as err:
         raise Exception(f"Error occured: {err}")
 
@@ -133,7 +147,7 @@ def plotXY(
             print(i, int(_dataset[1:][i][0]))
             slope = 1/(math.tan(azm_dct[int(_dataset[1:][i][0])]))
             offset = list_y[i] - (slope * list_x[i])
-            xrange = list(numpy.linspace(min(list_x), max(list_x), 10))
+            xrange = list(np.linspace(min(list_x), max(list_x), 10))
             yrange = [(slope * xrange[j]) + offset for j in range(len(xrange))]
             print(xrange, yrange)
             plt.plot(xrange, yrange, color=next(colors))
@@ -247,3 +261,105 @@ def plotSequentially(
         plt.plot(latList, lonList)
     
     plt.show()
+
+def extract_hist_from_bounding_box(
+        image_to_load: str,
+        loc_x_bounds: Type[range],
+        loc_y_bounds: Type[range],
+        start_time: int = 0,
+        time_stamps: int = 10,
+        filters: list[str] = ["Motorcycle"],    ## , "Taxi", "Bus"
+        save_hist: bool = False,                ## yet to implement
+        use_jenks: bool = False,                ## yet to implement
+        use_kmeans: bool = False                ## yet to implement
+    ) -> None:
+    
+    image = Image.open(join(FRAME_LOC_WIN, image_to_load))
+    marks = sorted([file for file in listdir(ANNOT_LOC_WIN) if isfile(join(ANNOT_LOC_WIN, file))])
+
+    draw  = ImageDraw.Draw(image)
+    draw.rectangle((loc_x_bounds.start, loc_y_bounds.start, loc_x_bounds.stop, loc_y_bounds.stop), outline="black", width=10)
+
+    data_xs, data_ys = [], []
+    for i in range(start_time, start_time + time_stamps):
+        dataset = load_partial_dataset(join(ANNOT_LOC_WIN, marks[i]), ',', "Type", filters)
+        for data in dataset[1:]:
+            if int(data[3]) in loc_x_bounds and int(data[4]) in loc_y_bounds:
+                data_xs.append(int(data[3]))
+                data_ys.append(int(data[4]))
+                _draw_circle(image, (int(data[3]), int(data[4])), 10)
+
+    ys = [y for y in data_ys]
+    print(sorted(ys))
+    # min_y, max_y = min(data_ys), max(data_ys)
+    # norm_ys = [(y - min_y)/(max_y - min_y)*10 for y in data_ys]
+    # print(_jenks_breaks(ys, 5))
+    plt.hist(ys, bins=10)
+    plt.xlabel("Pixel y-coordinate (top to bottom in image)")
+    plt.ylabel("No. of vehicles")
+
+    image.show()
+    plt.show()
+
+def _draw_circle(image, center, radius):
+
+    draw = ImageDraw.Draw(image)
+
+    # Calculate the bounding box of the circle
+    x0 = center[0] - radius
+    y0 = center[1] - radius
+    x1 = center[0] + radius
+    y1 = center[1] + radius
+
+    # Draw the circle
+    draw.ellipse([x0, y0, x1, y1], fill="black")
+
+def _jenks_breaks(data, num_classes) -> list[float]:
+
+    # Flatten the histogram bins to form the data
+    # data = np.concatenate(data)
+
+    # Ensure data is sorted
+    data = sorted(data)
+
+    # Initialization
+    n = len(data)
+    mat1 = np.zeros((n + 1, num_classes + 1))
+    mat2 = np.zeros((n + 1, num_classes + 1))
+    for i in range(1, n + 1):
+        mat1[i][1] = 1
+        mat2[i][1] = 0
+        for j in range(2, num_classes + 1):
+            mat2[i][j] = -1
+            mat1[i][j] = float('inf')
+
+    # Calculation
+    v = 0.0
+    for l in range(2, n + 1):
+        s1 = 0.0
+        s2 = 0.0
+        w = 0.0
+        for m in range(1, l + 1):
+            i3 = l - m + 1
+            val = float(data[i3 - 1])
+            s2 += val * val
+            s1 += val
+            w += 1
+            v = s2 - (s1 * s1) / w
+            i4 = i3 - 1
+            if i4 != 0:
+                for j in range(2, num_classes + 1):
+                    if mat1[l][j] >= (v + mat1[i4][j - 1]):
+                        mat2[l][j] = i3 - 1
+                        mat1[l][j] = v + mat1[i4][j - 1]
+        mat1[l][1] = v
+
+    # Backtracking
+    k = n
+    kclass: list[float] = [0] * (num_classes + 1)
+    kclass[num_classes] = float(data[n - 1])
+    for j in range(num_classes, 0, -1):
+        count_num = int(mat2[k][j])
+        kclass[j - 1] = float(data[count_num])
+        k = int(count_num) + 1
+    return kclass

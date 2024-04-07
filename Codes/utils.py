@@ -6,6 +6,7 @@ from os.path import join, isfile
 import math
 import numpy as np
 from statistics import fmean
+from sklearn.cluster import KMeans
 
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -104,6 +105,8 @@ def _find_index_from_name(target: list[str], filter: str) -> int:
             return idx
     
     return -1
+
+## pNeuma Dataset Related Code
 
 def plotXY(
         _dataset: list[list[str]], x_coords: str, y_coords: str,
@@ -262,6 +265,8 @@ def plotSequentially(
     
     plt.show()
 
+## pNeuma Vision Dataset Related Code
+
 def extract_hist_from_bounding_box(
         image_to_load: str,
         loc_x_bounds: Type[range],
@@ -270,9 +275,7 @@ def extract_hist_from_bounding_box(
         time_stamps: int = 10,
         filters: list[str] = ["Motorcycle"],    ## , "Taxi", "Bus"
         save_hist: bool = False,                ## yet to implement
-        use_jenks: bool = False,                ## yet to implement
-        use_kmeans: bool = False                ## yet to implement
-    ) -> None:
+    ) -> list[int]:
     
     image = Image.open(join(FRAME_LOC_WIN, image_to_load))
     marks = sorted([file for file in listdir(ANNOT_LOC_WIN) if isfile(join(ANNOT_LOC_WIN, file))])
@@ -289,8 +292,7 @@ def extract_hist_from_bounding_box(
                 data_ys.append(int(data[4]))
                 _draw_circle(image, (int(data[3]), int(data[4])), 10)
 
-    ys = [y for y in data_ys]
-    print(sorted(ys))
+    ys = sorted(data_ys)
     # min_y, max_y = min(data_ys), max(data_ys)
     # norm_ys = [(y - min_y)/(max_y - min_y)*10 for y in data_ys]
     # print(_jenks_breaks(ys, 5))
@@ -300,6 +302,8 @@ def extract_hist_from_bounding_box(
 
     image.show()
     plt.show()
+
+    return ys
 
 def _draw_circle(image, center, radius):
 
@@ -314,7 +318,23 @@ def _draw_circle(image, center, radius):
     # Draw the circle
     draw.ellipse([x0, y0, x1, y1], fill="black")
 
-def _jenks_breaks(data, num_classes) -> list[float]:
+def plot_classes_hist(
+        data: list[int], classes: list[float]
+    ) -> None:
+
+    out: list[list[int]] = []
+    for i in range(len(classes) - 1):
+        out.append([])
+
+    for i in range(len(classes) - 1):
+        for ele in data:
+            if (ele > classes[i]) and (ele < classes[i+1]):
+                out[i].append(ele)
+    print(out)
+    plt.hist(out)
+    plt.show()
+
+def jenks_breaks(data, num_classes) -> list[float]:
 
     # Flatten the histogram bins to form the data
     # data = np.concatenate(data)
@@ -363,3 +383,26 @@ def _jenks_breaks(data, num_classes) -> list[float]:
         kclass[j - 1] = float(data[count_num])
         k = int(count_num) + 1
     return kclass
+
+def elbow_method(features):
+
+    features = np.array(features).reshape(-1, 1)
+
+    # Apply K-Means with multiple cluster numbers to demonstrate the elbow method
+    inertia_values = []
+    cluster_range = range(1, 11)
+
+    for k in cluster_range:
+        kmeans = KMeans(n_clusters=k, n_init=10, random_state=42)
+        kmeans.fit(features)
+        inertia_values.append(kmeans.inertia_)
+
+    # Plotting the Elbow Method graph
+    plt.figure(figsize=(8, 6))
+    plt.plot(cluster_range, inertia_values, '-o', color='blue')
+    plt.title('Elbow Method For Optimal k')
+    plt.xlabel('Number of clusters (k)')
+    plt.ylabel('Inertia')
+    plt.xticks(cluster_range)
+    plt.grid(True)
+    plt.show()
